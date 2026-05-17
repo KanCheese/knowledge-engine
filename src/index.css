@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Titillium Web", ui-sans-serif, system-ui, sans-serif;
+  --color-surface: #0a0b0e;
+  --color-surface-raised: #12141a;
+  --color-border: #252a36;
+  --color-muted: #8b93a7;
+  --color-accent: #6b8afd;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  background: var(--color-surface);
+  color: #e8eaef;
+  -webkit-font-smoothing: antialiased;
+}

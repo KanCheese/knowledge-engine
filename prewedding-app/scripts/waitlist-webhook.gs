@@ -1,17 +1,30 @@
 /**
- * SHAADISNAP WAITLIST — paste in Apps Script (from inside your Google Sheet)
+ * SHAADISNAP WAITLIST — run from INSIDE your Google Sheet
  *
- * Setup:
- * 1. Open your Google Sheet → Extensions → Apps Script
- * 2. Delete default code → paste this entire file → Save
- * 3. Project Settings → Script properties → WEBHOOK_SECRET = (optional, match Vercel)
- * 4. Deploy → New deployment → Web app
- *      Execute as: Me
- *      Who has access: Anyone
- * 5. Copy the NEW /exec URL → Vercel env WAITLIST_WEBHOOK_URL → Redeploy
+ * ONE-TIME SETUP:
+ * 1. Create a Google Sheet called "ShaadiSnap Waitlist"
+ * 2. Copy the Sheet ID from the URL:
+ *    https://docs.google.com/spreadsheets/d/PASTE_THIS_PART/edit
+ * 3. Open that Sheet → Extensions → Apps Script
+ * 4. Delete all code → paste this file → Save
+ * 5. Project Settings → Script properties → add:
+ *      SHEET_ID = (your sheet id from step 2)
+ *      WEBHOOK_SECRET = (optional — same as Vercel, or leave empty to test)
+ * 6. In Apps Script editor: select doGet → Run → approve permissions
+ * 7. Deploy → New deployment → Web app
+ *      Execute as: Me | Who has access: Anyone
+ * 8. Copy the /exec URL (NOT the sheet URL) → Vercel WAITLIST_WEBHOOK_URL
  *
- * Test: open the /exec URL in browser — should show {"ok":true,"message":"ShaadiSnap waitlist webhook"}
+ * TEST: open /exec in browser → {"ok":true,"message":"ShaadiSnap waitlist webhook"}
  */
+function getWaitlistSheet() {
+  var sheetId = PropertiesService.getScriptProperties().getProperty("SHEET_ID");
+  if (!sheetId) {
+    throw new Error("Missing SHEET_ID in Script properties");
+  }
+  return SpreadsheetApp.openById(sheetId).getActiveSheet();
+}
+
 function doGet() {
   return jsonResponse({ ok: true, message: "ShaadiSnap waitlist webhook" });
 }
@@ -26,7 +39,8 @@ function doPost(e) {
       return jsonResponse({ error: "Unauthorized" });
     }
 
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var sheet = getWaitlistSheet();
+
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
         "signed_up_at",

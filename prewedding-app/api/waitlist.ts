@@ -17,8 +17,12 @@ const rateLimit = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 60_000;
 
+function normalizePhone(raw: string) {
+  return raw.replace(/\D/g, "").slice(0, 10);
+}
+
 function isValidPhone(phone: string) {
-  return /^[6-9]\d{9}$/.test(phone);
+  return /^[6-9]\d{9}$/.test(normalizePhone(phone));
 }
 
 function getClientIp(
@@ -90,7 +94,7 @@ export default async function handler(
     return res.status(200).json({ ok: true });
   }
 
-  const phone = String(body.phone ?? "").replace(/\D/g, "");
+  const phone = normalizePhone(String(body.phone ?? ""));
 
   if (!isValidPhone(phone)) {
     return res.status(400).json({ error: "Invalid phone number" });

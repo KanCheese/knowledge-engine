@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SampleCarousel } from "./components/SampleCarousel";
 import { initMetaPixel, trackMetaEvent } from "./lib/metaPixel";
+import { normalizePhone, phoneError } from "./lib/phone";
 import { readUtmParams } from "./lib/utm";
 
 type Lang = "hi" | "en";
@@ -18,7 +19,7 @@ const copy = {
     submitting: "Join ho rahe hain...",
     successTitle: "List mein hain! 🎉",
     successSub: "Launch par WhatsApp karenge.",
-    errorPhone: "Sahi number daalein",
+    phoneHint: "10-digit mobile",
     errorSubmit: "Dobara try karein",
   },
   en: {
@@ -33,14 +34,10 @@ const copy = {
     submitting: "Joining...",
     successTitle: "You're on the list! 🎉",
     successSub: "We'll WhatsApp you at launch.",
-    errorPhone: "Enter valid number",
+    phoneHint: "10-digit mobile",
     errorSubmit: "Try again",
   },
 };
-
-function isValidIndianPhone(phone: string) {
-  return /^[6-9]\d{9}$/.test(phone.replace(/\s/g, ""));
-}
 
 export default function Landing() {
   const [lang, setLang] = useState<Lang>("hi");
@@ -48,6 +45,7 @@ export default function Landing() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [phoneErrorMsg, setPhoneErrorMsg] = useState("");
   const [done, setDone] = useState(false);
   const [honeypot, setHoneypot] = useState("");
 
@@ -61,9 +59,10 @@ export default function Landing() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const cleaned = phone.replace(/\D/g, "");
-    if (!isValidIndianPhone(cleaned)) {
-      setError(s.errorPhone);
+    const cleaned = normalizePhone(phone);
+    const pErr = phoneError(lang, cleaned);
+    if (pErr) {
+      setPhoneErrorMsg(pErr);
       return;
     }
 
@@ -169,10 +168,21 @@ export default function Landing() {
                 inputMode="numeric"
                 autoComplete="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={`${s.phone} · 98XXX XXXXX`}
-                className="min-w-0 flex-[3] rounded-xl border border-white/10 bg-white/5 px-3 py-3.5 font-semibold text-rose-50 placeholder:text-rose-300/25 outline-none focus:border-amber-500/50"
-                maxLength={14}
+                onChange={(e) => {
+                  setPhone(normalizePhone(e.target.value));
+                  setPhoneErrorMsg("");
+                  setError("");
+                }}
+                onBlur={() => {
+                  if (phone) setPhoneErrorMsg(phoneError(lang, phone) ?? "");
+                }}
+                placeholder={s.phoneHint}
+                className={`min-w-0 flex-[3] rounded-xl border bg-white/5 px-3 py-3.5 font-semibold text-rose-50 placeholder:text-rose-300/25 outline-none focus:border-amber-500/50 ${
+                  phoneErrorMsg ? "border-red-400/60" : "border-white/10"
+                }`}
+                maxLength={10}
+                pattern="[6-9][0-9]{9}"
+                aria-invalid={!!phoneErrorMsg}
               />
               <input
                 type="text"
@@ -194,9 +204,9 @@ export default function Landing() {
               aria-hidden="true"
             />
 
-            {error && (
+            {(phoneErrorMsg || error) && (
               <p className="text-center text-xs font-semibold text-red-300">
-                {error}
+                {phoneErrorMsg || error}
               </p>
             )}
 

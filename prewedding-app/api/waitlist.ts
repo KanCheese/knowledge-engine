@@ -41,10 +41,22 @@ function isRateLimited(ip: string) {
   return entry.count > RATE_LIMIT;
 }
 
+function parseBody(raw: unknown): WaitlistBody {
+  if (!raw) return {} as WaitlistBody;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as WaitlistBody;
+    } catch {
+      return {} as WaitlistBody;
+    }
+  }
+  return raw as WaitlistBody;
+}
+
 export default async function handler(
   req: {
     method?: string;
-    body?: WaitlistBody;
+    body?: unknown;
     headers?: Record<string, string | string[] | undefined>;
   },
   res: {
@@ -72,7 +84,7 @@ export default async function handler(
     return res.status(429).json({ error: "Too many requests" });
   }
 
-  const body = req.body ?? ({} as WaitlistBody);
+  const body = parseBody(req.body);
 
   if (body.website) {
     return res.status(200).json({ ok: true });
@@ -101,24 +113,46 @@ export default async function handler(
   const webhookUrl = process.env.WAITLIST_WEBHOOK_URL;
   const webhookSecret = process.env.WAITLIST_WEBHOOK_SECRET;
 
-  if (webhookUrl) {
-    try {
-      const webhookRes = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(webhookSecret ? { "X-Waitlist-Secret": webhookSecret } : {}),
-        },
-        body: JSON.stringify(entry),
-      });
-      if (!webhookRes.ok) {
-        console.error("Webhook failed:", webhookRes.status, await webhookRes.text());
-      }
-    } catch (err) {
-      console.error("Webhook error:", err);
+  if (!webhookUrl) {
+    console.error("[waitlist] WAITLIST_WEBHOOK_URL not set");
+    return res.status(503).json({ error: "Waitlist storage not configured" });
+  }
+
+  try {
+    const webhookRes = await fetch(webhookUrl, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...entry,
+        webhook_secret: webhookSecret ?? "",
+      }),
+    });
+
+    const responseText = await webhookRes.text();
+
+    if (!webhookRes.ok) {
+      console.error("Webhook failed:", webhookRes.status, responseText);
+      return res.status(502).json({ error: "Could not save signup" });
     }
-  } else {
-    console.log("[waitlist]", JSON.stringify(entry));
+
+    if (responseText.includes("Page not found") || responseText.includes("<!DOCTYPE")) {
+      console.error("Webhook returned HTML error page");
+      return res.status(502).json({ error: "Could not save signup" });
+    }
+
+    try {
+      const parsed = JSON.parse(responseText) as { error?: string; ok?: boolean };
+      if (parsed.error) {
+        console.error("Webhook error:", parsed.error);
+        return res.status(502).json({ error: "Could not save signup" });
+      }
+    } catch {
+      /* non-JSON success from Apps Script is ok */
+    }
+  } catch (err) {
+    console.error("Webhook error:", err);
+    return res.status(502).json({ error: "Could not save signup" });
   }
 
   return res.status(200).json({ ok: true });
